@@ -1,0 +1,20 @@
+[
+  {
+    "modid": "underpants-gnomes",
+    "name": "Underpants Gnomes",
+    "description": "Gnomes will do anything for underpants",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "",
+    "updateUrl": "",
+    "authorList": [
+      "ken@vulpes.com"
+    ],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": [
+      ""
+    ]
+  }
+]
