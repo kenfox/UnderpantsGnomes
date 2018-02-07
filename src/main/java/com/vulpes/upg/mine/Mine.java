@@ -17,6 +17,84 @@ public class Mine {
     private EnumFacing mineFacing;
     private int delayRemaining;
 
+    public BlockPos upFrom(BlockPos p, int dist) {
+        return upFrom(p, mineFacing, dist);
+    }
+
+    public BlockPos downFrom(BlockPos p, int dist) {
+        return upFrom(p, mineFacing, -dist);
+    }
+
+    public BlockPos leftFrom(BlockPos p, int dist) {
+        return leftFrom(p, mineFacing, dist);
+    }
+
+    public BlockPos rightFrom(BlockPos p, int dist) {
+        return leftFrom(p, mineFacing, -dist);
+    }
+
+    public BlockPos forwardFrom(BlockPos p, int dist) {
+        return forwardFrom(p, mineFacing, dist);
+    }
+
+    public BlockPos backwardFrom(BlockPos p, int dist) {
+        return forwardFrom(p, mineFacing, -dist);
+    }
+
+    static public BlockPos upFrom(BlockPos p, EnumFacing facing, int dist) {
+        if (dist == 0)
+            return p;
+        return p.add(0, dist, 0);
+    }
+
+    static public BlockPos downFrom(BlockPos p, EnumFacing facing, int dist) {
+        return upFrom(p, facing, -dist);
+    }
+
+    static public BlockPos leftFrom(BlockPos p, EnumFacing facing, int dist) {
+        if (dist == 0)
+            return p;
+        switch (facing) {
+            case NORTH:
+                return p.add(dist, 0, 0);
+            case EAST:
+                return p.add(0, 0, dist);
+            case WEST:
+                return p.add(0, 0, -dist);
+            case UP:
+            case DOWN:
+            case SOUTH:
+            default:
+                return p.add(-dist, 0, 0);
+        }
+    }
+
+    static public BlockPos rightFrom(BlockPos p, EnumFacing facing, int dist) {
+        return leftFrom(p, facing, -dist);
+    }
+
+    static public BlockPos forwardFrom(BlockPos p, EnumFacing facing, int dist) {
+        if (dist == 0)
+            return p;
+        switch (facing) {
+            case NORTH:
+                return p.add(0, 0, dist);
+            case EAST:
+                return p.add(-dist, 0, 0);
+            case WEST:
+                return p.add(dist, 0, 0);
+            case UP:
+            case DOWN:
+            case SOUTH:
+            default:
+                return p.add(0, 0, -dist);
+        }
+    }
+
+    static public BlockPos backwardFrom(BlockPos p, EnumFacing facing, int dist) {
+        return forwardFrom(p, facing, -dist);
+    }
+
     static void log(String msg) {
         UnderpantsGnomes.logger.info(msg);
     }
@@ -43,6 +121,7 @@ public class Mine {
         mineFacing = state.getValue(BlockWallSign.FACING);
         delayRemaining = 0;
 
+        log("facing is " + mineFacing);
         // FIXME construct ArrayList<Branch>
     }
 
@@ -75,21 +154,45 @@ public class Mine {
     public void expand(World world) {
         if (--delayRemaining <= 0) {
             log("mining!");
+            digTest2(world);
             // FIXME actually expand mine!
-            delayRemaining = 20;
+            delayRemaining = 200;
         }
     }
 
-    void digTest(World world) {
-        // FIXME code currently assumes mineFacing == north
-        log("remote? " + world.isRemote + " facing " + mineFacing);
+    void digTest1(World world) {
+        log("digTest1: remote? " + world.isRemote + " facing " + mineFacing);
+        BlockPos p = minePos;
+        for (int i = 0; i < 5; ++i) {
+            p = leftFrom(p, 1);
+            world.setBlockToAir(p);
+        }
+        for (int i = 0; i < 4; ++i) {
+            p = forwardFrom(p, 1);
+            world.setBlockToAir(p);
+        }
+        for (int i = 0; i < 3; ++i) {
+            p = rightFrom(p, 1);
+            world.setBlockToAir(p);
+        }
+        for (int i = 0; i < 2; ++i) {
+            p = backwardFrom(p, 1);
+            world.setBlockToAir(p);
+        }
+    }
+
+    void digTest2(World world) {
+        log("digtest2: remote? " + world.isRemote + " facing " + mineFacing);
         NonNullList<ItemStack> drops = NonNullList.create();
 
-        for (int digOffset = -5; digOffset < 6; ++digOffset) {
-            BlockPos branchPos = minePos.add(digOffset, 0, 2);
+        for (int digOffset = -5; digOffset < 2; ++digOffset) {
+            BlockPos branchPos = leftFrom(minePos, digOffset);
+            if (digOffset == 0)
+                branchPos = forwardFrom(branchPos, 2);
             for (int dz = 0; dz < 4; ++dz) {
                 for (int dy = 0; dy < 3; ++dy) {
-                    digBlockInMine(world, branchPos, drops, dz, dy);
+                    BlockPos p = upFrom(forwardFrom(branchPos, dz), dy);
+                    digBlockInMine(world, p, drops);
                 }
             }
         }
@@ -104,10 +207,7 @@ public class Mine {
         }
     }
 
-    void digBlockInMine(World world, BlockPos minePos, NonNullList<ItemStack> drops, int dz, int dy) {
-        if (dz != 0 || dy != 0) {
-            minePos = minePos.add(0, dy, dz);
-        }
+    void digBlockInMine(World world, BlockPos minePos, NonNullList<ItemStack> drops) {
         IBlockState state = world.getBlockState(minePos);
         Block block = state.getBlock();
         block.getDrops(drops, world, minePos, state, 0);
