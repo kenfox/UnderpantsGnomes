@@ -5,9 +5,11 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTUtil;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
+import net.minecraft.world.storage.MapStorage;
 import net.minecraft.world.storage.WorldSavedData;
 import net.minecraftforge.common.util.Constants;
 
+import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -15,24 +17,33 @@ import java.util.Iterator;
 public class WorldManager extends WorldSavedData {
     static final String MINES_NBT_NAME = "gnomeMines";
 
-    HashSet<BlockPos> possibleMinePos = new HashSet<>();
-    HashMap<BlockPos, Mine> mineCache = new HashMap<>();
-    int ticksUntilMinesRefresh = 200;
+    private HashSet<BlockPos> possibleMinePos = new HashSet<>();
+    private HashMap<BlockPos, Mine> mineCache = new HashMap<>();
+    private int ticksUntilMinesRefresh = 200;
 
     public WorldManager(String name) {
         super(name);
     }
 
-    static String saveName(int dimension) {
-        return UnderpantsGnomes.MOD_ID + "_DIM" + dimension;
+    @Nonnull
+    static public WorldManager getManager(World world) {
+        MapStorage storage = world.getPerWorldStorage();
+        int dimension = world.provider.getDimension();
+        String name = UnderpantsGnomes.MOD_ID + "_DIM" + dimension;
+        WorldManager manager = (WorldManager) storage.getOrLoadData(WorldManager.class, name);
+        if (manager == null) {
+            manager = new WorldManager(name);
+        }
+        return manager;
     }
 
     void save(World world) {
-        world.setData(mapName, this);
+        MapStorage storage = world.getPerWorldStorage();
+        storage.setData(mapName, this);
         markDirty();
     }
 
-    Mine refreshCache(World world, BlockPos pos) {
+    private Mine refreshCachedMine(World world, BlockPos pos) {
         Mine mine = mineCache.get(pos);
         if (mine == null) {
             if (Mine.isPresent(world, pos)) {
@@ -49,13 +60,13 @@ public class WorldManager extends WorldSavedData {
         return mine;
     }
 
-    void refreshMines(World world) {
+    private void refreshMines(World world) {
         boolean dirty = false;
         Iterator<BlockPos> i = possibleMinePos.iterator();
         while (i.hasNext()) {
             BlockPos pos = i.next();
             if (world.isBlockLoaded(pos)) {
-                Mine mine = refreshCache(world, pos);
+                Mine mine = refreshCachedMine(world, pos);
                 if (mine == null) {
                     dirty = true;
                     i.remove();
@@ -70,7 +81,7 @@ public class WorldManager extends WorldSavedData {
         }
     }
 
-    void periodicRefreshMines(World world) {
+    public void periodicRefreshMines(World world) {
         if (ticksUntilMinesRefresh == 0) {
             refreshMines(world);
             ticksUntilMinesRefresh = 20;
@@ -79,7 +90,7 @@ public class WorldManager extends WorldSavedData {
         }
     }
 
-    boolean addPossibleMine(World world, BlockPos pos) {
+    public boolean addPossibleMine(World world, BlockPos pos) {
         if (world.isBlockLoaded(pos)) {
             if (Mine.isPresent(world, pos)) {
                 Mine mine = new Mine(world, pos);
@@ -92,7 +103,7 @@ public class WorldManager extends WorldSavedData {
         return false;
     }
 
-    void expandMines(World world) {
+    public void expandMines(World world) {
         for (HashMap.Entry<BlockPos, Mine> mine: mineCache.entrySet()) {
             if (world.isBlockLoaded(mine.getKey())) {
                 mine.getValue().expand(world);

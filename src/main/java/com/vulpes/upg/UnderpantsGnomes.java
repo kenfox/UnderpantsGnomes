@@ -55,10 +55,8 @@ public class UnderpantsGnomes {
             World world = event.world;
             if (event.phase == TickEvent.Phase.END) {
                 WorldManager manager = Server.getManager(world);
-                if (manager != null) {
-                    manager.periodicRefreshMines(world);
-                    manager.expandMines(world);
-                }
+                manager.periodicRefreshMines(world);
+                manager.expandMines(world);
             }
         }
 
@@ -67,10 +65,8 @@ public class UnderpantsGnomes {
             World world = event.getWorld();
             if (!world.isRemote && event.getHand() == EnumHand.MAIN_HAND) {
                 WorldManager manager = Server.getManager(world);
-                if (manager != null) {
-                    if (manager.addPossibleMine(world, event.getPos())) {
-                        logger.info("Gnomes appear interested");
-                    }
+                if (manager.addPossibleMine(world, event.getPos())) {
+                    logger.info("Gnomes appear interested");
                 }
             }
         }
