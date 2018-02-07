@@ -1,5 +1,7 @@
-package com.vulpes.upg;
+package com.vulpes.upg.world;
 
+import com.vulpes.upg.mine.Mine;
+import com.vulpes.upg.UnderpantsGnomes;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.nbt.NBTUtil;

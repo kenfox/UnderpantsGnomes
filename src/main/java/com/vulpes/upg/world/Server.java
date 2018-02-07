@@ -1,4 +1,4 @@
-package com.vulpes.upg;
+package com.vulpes.upg.world;
 
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;

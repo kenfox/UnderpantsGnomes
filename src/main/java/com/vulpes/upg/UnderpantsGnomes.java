@@ -1,5 +1,7 @@
 package com.vulpes.upg;
 
+import com.vulpes.upg.world.Server;
+import com.vulpes.upg.world.WorldManager;
 import net.minecraft.block.Block;
 import net.minecraft.util.EnumHand;
 import net.minecraft.world.World;
@@ -25,7 +27,7 @@ public class UnderpantsGnomes {
     public static final String MOD_NAME = "Underpants Gnomes";
     public static final String VERSION = "0.0.1";
 
-    static Logger logger;
+    static public Logger logger;
 
     @Mod.Instance(MOD_ID)
     public static UnderpantsGnomes INSTANCE;

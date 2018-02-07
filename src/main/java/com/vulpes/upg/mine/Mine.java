@@ -1,5 +1,6 @@
-package com.vulpes.upg;
+package com.vulpes.upg.mine;
 
+import com.vulpes.upg.UnderpantsGnomes;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockWallSign;
 import net.minecraft.block.state.IBlockState;
@@ -12,15 +13,15 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 public class Mine {
-    BlockPos minePos;
-    EnumFacing mineFacing;
-    int delayRemaining;
+    private BlockPos minePos;
+    private EnumFacing mineFacing;
+    private int delayRemaining;
 
     static void log(String msg) {
         UnderpantsGnomes.logger.info(msg);
     }
 
-    Mine(World world, BlockPos pos) {
+    public Mine(World world, BlockPos pos) {
         IBlockState state = world.getBlockState(pos);
         if (state != null) {
             Block block = state.getBlock();
