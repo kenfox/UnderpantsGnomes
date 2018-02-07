@@ -3,6 +3,7 @@ package com.vulpes.upg;
 import com.vulpes.upg.world.Server;
 import com.vulpes.upg.world.WorldManager;
 import net.minecraft.block.Block;
+import net.minecraft.item.Item;
 import net.minecraft.util.EnumHand;
 import net.minecraft.world.World;
 import net.minecraftforge.fml.common.Mod;
@@ -47,7 +48,26 @@ public class UnderpantsGnomes {
 
     @GameRegistry.ObjectHolder("minecraft")
     public static class Thing {
+        // FIXME how to tell intellij that these are not really null?
         public static final Block wall_sign = null;
+        public static final Block chest = null;
+
+        public static final Block log = null;
+        public static final Item coal = null;
+
+        public static final Block torch = null;
+        public static final Item wooden_pickaxe = null;
+        public static final Item stone_pickaxe = null;
+        public static final Item iron_pickaxe = null;
+        public static final Item diamond_pickaxe = null;
+
+        public static final Block stone = null;
+        public static final Block dirt = null;
+        public static final Block gravel = null;
+        public static final Block cobblestone = null;
+        public static final Block iron_ore = null;
+        public static final Block coal_ore = null;
+        public static final Block diamond_ore = null;
     }
 
     @Mod.EventBusSubscriber

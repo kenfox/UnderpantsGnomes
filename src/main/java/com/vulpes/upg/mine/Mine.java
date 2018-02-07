@@ -4,8 +4,11 @@ import com.vulpes.upg.UnderpantsGnomes;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockWallSign;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemFood;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.tileentity.TileEntityChest;
 import net.minecraft.tileentity.TileEntitySign;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.NonNullList;
@@ -121,6 +124,36 @@ public class Mine {
         mineFacing = state.getValue(BlockWallSign.FACING);
         delayRemaining = 0;
 
+        state = world.getBlockState(minePos);
+        if (state != null) {
+            Block block = state.getBlock();
+            if (block == UnderpantsGnomes.Thing.chest) {
+                if (block.hasTileEntity(state)) {
+                    TileEntity tileEntity = world.getTileEntity(minePos);
+                    if (tileEntity instanceof TileEntityChest) {
+                        TileEntityChest chest = (TileEntityChest) tileEntity;
+                        int size = chest.getSizeInventory();
+                        for (int i = 0; i < size; ++i) {
+                            ItemStack stack = chest.getStackInSlot(i);
+                            if (!stack.isEmpty()) {
+                                Item item = stack.getItem();
+                                log("contains: @" + i +
+                                        " x" + stack.getCount() +
+                                        " " + item.getRegistryName());
+                                if (item instanceof ItemFood) {
+                                    ItemFood food = (ItemFood) item;
+                                    // FIXME why do these take a stack?
+                                    int heal = food.getHealAmount(stack);
+                                    float saturation = food.getSaturationModifier(stack);
+                                    log("  food! heal=" + heal + " saturation=" + saturation);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         log("facing is " + mineFacing);
         // FIXME construct ArrayList<Branch>
     }
@@ -146,6 +179,9 @@ public class Mine {
                         }
                     }
                 }
+            }
+            else {
+                log("hit block " + block + " state=" + state);
             }
         }
         return false;
