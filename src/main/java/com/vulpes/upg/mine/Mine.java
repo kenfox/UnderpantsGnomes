@@ -4,21 +4,48 @@ import com.vulpes.upg.UnderpantsGnomes;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockWallSign;
 import net.minecraft.block.state.IBlockState;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemFood;
-import net.minecraft.item.ItemStack;
+import net.minecraft.item.*;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntityChest;
 import net.minecraft.tileentity.TileEntitySign;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.NonNullList;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
 public class Mine {
-    private BlockPos minePos;
-    private EnumFacing mineFacing;
-    private int delayRemaining;
+    private BlockPos minePos; // position of center of mine.
+    private EnumFacing mineFacing; // direction mine faces.
+
+    private int delayRemaining; // ticks until next mine operation.
+
+    private double happiness; // more happiness is more better.
+    private double efficiency; // efficiency influences ores and drops.
+
+    // Resources are taken from the chest @minePos as needed. Items
+    // are converted into a balance that mining operations draw down.
+    // This state is not kept across saves or chunk loading.
+    //
+    // A chest is not necessary at the mine position, but if one does
+    // not exist, no resources are available to power the mine.
+
+    private double foodRemaining;
+    private double woodRemaining;
+    private double coalRemaining;
+    private double ironRemaining;
+
+    // Options for building the mine are controlled by items placed into
+    // the mine chest (the same one used for stocking resources).
+
+    private boolean shouldLightTunnels; // set torches to light mine?
+    private boolean shouldBuildFloor; // build floor across gaps?
+    private boolean shouldBuildDown; // build ladders to lower levels?
+    private boolean shouldBreakBasicOre; // break coal, iron, copper, etc.?
+    private boolean shouldBreakFancyOre; // break diamond, redstone, lapis, etc.?
+    private boolean shouldBreakEverything; // break everything else?
+
+    private boolean inCreativeMode; // do operations require resources?
 
     public BlockPos upFrom(BlockPos p, int dist) {
         return upFrom(p, mineFacing, dist);
@@ -103,10 +130,44 @@ public class Mine {
     }
 
     public Mine(World world, BlockPos pos) {
+        minePos = pos.add(0, -1, 0);
+        mineFacing = EnumFacing.NORTH;
+        delayRemaining = 0;
+
+        happiness = 0.0;
+        efficiency = 0.0;
+
+        foodRemaining = 0.0;
+        woodRemaining = 0.0;
+        coalRemaining = 0.0;
+        ironRemaining = 0.0;
+
+        shouldLightTunnels = false;
+        shouldBuildFloor = false;
+        shouldBuildDown = false;
+        shouldBreakBasicOre = false;
+        shouldBreakFancyOre = false;
+        shouldBreakEverything = false;
+
+        inCreativeMode = false;
+
+        configureMineUsingSign(world, pos);
+        configureMineUsingChest(world);
+
+        log("facing is " + mineFacing);
+        log("lighting? " + shouldLightTunnels);
+        log("flooring? " + shouldBuildFloor);
+        log("breaking blocks? basic=" + shouldBreakBasicOre + " fancy=" + shouldBreakFancyOre + " all=" + shouldBreakEverything);
+
+        // FIXME construct ArrayList<Branch>
+    }
+
+    private void configureMineUsingSign(World world, BlockPos pos) {
         IBlockState state = world.getBlockState(pos);
         if (state != null) {
             Block block = state.getBlock();
             if (block == UnderpantsGnomes.Thing.wall_sign) {
+                mineFacing = state.getValue(BlockWallSign.FACING);
                 if (block.hasTileEntity(state)) {
                     TileEntity tileEntity = world.getTileEntity(pos);
                     if (tileEntity instanceof TileEntitySign) {
@@ -119,12 +180,69 @@ public class Mine {
                 }
             }
         }
+    }
 
-        minePos = pos.add(0, -1, 0);
-        mineFacing = state.getValue(BlockWallSign.FACING);
-        delayRemaining = 0;
+    private void configureMineUsingChest(World world) {
+        IBlockState state = world.getBlockState(minePos);
+        if (state != null) {
+            Block block = state.getBlock();
+            if (block == UnderpantsGnomes.Thing.chest) {
+                if (block.hasTileEntity(state)) {
+                    TileEntity tileEntity = world.getTileEntity(minePos);
+                    if (tileEntity instanceof TileEntityChest) {
+                        ItemStack ironStack = new ItemStack(UnderpantsGnomes.Thing.iron_ore, 1);
+                        TileEntityChest chest = (TileEntityChest) tileEntity;
+                        int size = chest.getSizeInventory();
+                        for (int i = 0; i < size; ++i) {
+                            ItemStack stack = chest.getStackInSlot(i);
+                            if (!stack.isEmpty()) {
+                                configureMineUsingItem(ironStack, stack.getItem());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
-        state = world.getBlockState(minePos);
+    private void configureMineUsingItem(ItemStack ironStack, Item anything) {
+        if (anything instanceof ItemTool) {
+            // FIXME does this work for Tinker's?
+            ItemTool pickaxe = (ItemTool) anything;
+            int harvest = pickaxe.getHarvestLevel(ironStack, "pickaxe", null, null);
+            if (harvest >= 3) {
+                shouldBreakEverything = true;
+            }
+            if (harvest >= 2) {
+                shouldBreakFancyOre = true;
+            }
+            if (harvest >= 1) {
+                shouldBreakBasicOre = true;
+            }
+        }
+        else if (anything instanceof ItemBlock) {
+            // FIXME use ore dictionary instead?
+            ItemBlock item = (ItemBlock) anything;
+            ResourceLocation resLoc = item.getRegistryName();
+            if (resLoc != null) {
+                String name = resLoc.getResourcePath();
+                switch (name) {
+                    case "torch":
+                        shouldLightTunnels = true;
+                        break;
+                    case "stone_slab":
+                        shouldBuildFloor = true;
+                        break;
+                    case "ladder":
+                        shouldBuildDown = true;
+                        break;
+                }
+            }
+        }
+    }
+
+    void consumeResourcesFromChest(World world) {
+        IBlockState state = world.getBlockState(minePos);
         if (state != null) {
             Block block = state.getBlock();
             if (block == UnderpantsGnomes.Thing.chest) {
@@ -136,12 +254,12 @@ public class Mine {
                         for (int i = 0; i < size; ++i) {
                             ItemStack stack = chest.getStackInSlot(i);
                             if (!stack.isEmpty()) {
-                                Item item = stack.getItem();
+                                Item anything = stack.getItem();
                                 log("contains: @" + i +
                                         " x" + stack.getCount() +
-                                        " " + item.getRegistryName());
-                                if (item instanceof ItemFood) {
-                                    ItemFood food = (ItemFood) item;
+                                        " " + anything.getRegistryName());
+                                if (anything instanceof ItemFood) {
+                                    ItemFood food = (ItemFood) anything;
                                     // FIXME why do these take a stack?
                                     int heal = food.getHealAmount(stack);
                                     float saturation = food.getSaturationModifier(stack);
@@ -153,9 +271,6 @@ public class Mine {
                 }
             }
         }
-
-        log("facing is " + mineFacing);
-        // FIXME construct ArrayList<Branch>
     }
 
     static public boolean isPresent(World world, BlockPos pos) {
