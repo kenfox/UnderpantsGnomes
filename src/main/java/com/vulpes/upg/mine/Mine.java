@@ -14,9 +14,22 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 
+import java.util.ArrayList;
+
+import static java.lang.Math.abs;
+import static net.minecraft.util.EnumFacing.*;
+
 public class Mine {
     private BlockPos minePos; // position of center of mine.
+    private int mineWidth; // length of the central tunnel (from center).
+    private int mineLength; // length of the branch tunnels.
     private EnumFacing mineFacing; // direction mine faces.
+
+    private ArrayList<Branch> branch; // branch tunnels in-progress.
+
+    private BlockPos tunnelEnd; // active digging in the central tunnel.
+    private boolean leftComplete;
+    private boolean rightComplete;
 
     private int delayRemaining; // ticks until next mine operation.
 
@@ -125,13 +138,47 @@ public class Mine {
         return forwardFrom(p, facing, -dist);
     }
 
+    static public EnumFacing reverseFacing(EnumFacing facing) {
+        switch (facing) {
+            case NORTH:
+                return SOUTH;
+            case EAST:
+                return WEST;
+            case WEST:
+                return EAST;
+            case UP:
+                return DOWN;
+            case DOWN:
+                return UP;
+            case SOUTH:
+            default:
+                return NORTH;
+        }
+    }
+
+    public static int distanceBetween(BlockPos branchPos, BlockPos minePos) {
+        int x = abs(branchPos.getX() - minePos.getX());
+        int z = abs(branchPos.getZ() - minePos.getZ());
+        return (x > z) ? x : z;
+    }
+
+    EnumFacing getFacing(boolean reverse) {
+        return (reverse) ? reverseFacing(mineFacing) : mineFacing;
+    }
+
+    public int getWidth() { return mineWidth; }
+    public int getLength() { return mineLength; }
+    public BlockPos getCenter() { return minePos; }
+
     static void log(String msg) {
         UnderpantsGnomes.logger.info(msg);
     }
 
     public Mine(World world, BlockPos pos) {
         minePos = pos.add(0, -1, 0);
-        mineFacing = EnumFacing.NORTH;
+        mineWidth = 48;
+        mineLength = 48;
+        mineFacing = NORTH;
         delayRemaining = 0;
 
         happiness = 0.0;
@@ -159,7 +206,22 @@ public class Mine {
         log("flooring? " + shouldBuildFloor);
         log("breaking blocks? basic=" + shouldBreakBasicOre + " fancy=" + shouldBreakFancyOre + " all=" + shouldBreakEverything);
 
-        // FIXME construct ArrayList<Branch>
+        tunnelEnd = leftFrom(minePos, 1);
+        leftComplete = false;
+        rightComplete = false;
+
+        branch = new ArrayList<>();
+
+        BlockPos leftPos = leftFrom(minePos, 2);
+        BlockPos rightPos = rightFrom(minePos, 2);
+        do {
+            branch.add(new Branch(this, false, forwardFrom(leftPos, 1)));
+            branch.add(new Branch(this, true, backwardFrom(leftPos, 3)));
+            branch.add(new Branch(this, false, forwardFrom(rightPos, 1)));
+            branch.add(new Branch(this, true, backwardFrom(rightPos, 3)));
+            leftPos = leftFrom(leftPos, 4);
+            rightPos = rightFrom(rightPos, 4);
+        } while (distanceBetween(leftPos, minePos) < mineWidth);
     }
 
     private void configureMineUsingSign(World world, BlockPos pos) {
@@ -302,13 +364,69 @@ public class Mine {
         return false;
     }
 
+    private boolean expandCentralTunnel(World world) {
+        if (!leftComplete) {
+            if (digCentralTunnelSection(world)) {
+                tunnelEnd = leftFrom(tunnelEnd, 1);
+                leftComplete = (distanceBetween(tunnelEnd, minePos) > mineWidth);
+                if (leftComplete) {
+                    tunnelEnd = rightFrom(minePos, 1);
+                }
+            }
+            return false;
+        }
+        if (!rightComplete) {
+            if (digCentralTunnelSection(world)) {
+                tunnelEnd = rightFrom(tunnelEnd, 1);
+                rightComplete = (distanceBetween(tunnelEnd, minePos) > mineWidth);
+            }
+        }
+        return rightComplete;
+    }
+
+    private boolean digCentralTunnelSection(World world) {
+        // FIXME all the same issues as with the branch expand
+        BlockPos a = tunnelEnd;
+        BlockPos b = backwardFrom(tunnelEnd, 1);
+        BlockPos c = backwardFrom(tunnelEnd, 2);
+        return (digBlock(world, a) &&
+                digBlock(world, upFrom(a, 1)) &&
+                digBlock(world, upFrom(a, 2)) &&
+                digBlock(world, b) &&
+                digBlock(world, upFrom(b, 1)) &&
+                digBlock(world, upFrom(b, 2)) &&
+                digBlock(world, c) &&
+                digBlock(world, upFrom(c, 1)) &&
+                digBlock(world, upFrom(c, 2)));
+    }
+
     public void expand(World world) {
         if (--delayRemaining <= 0) {
+            delayRemaining = 20;
             log("mining!");
-            digTest2(world);
-            // FIXME actually expand mine!
-            delayRemaining = 200;
+
+            if (expandCentralTunnel(world)) {
+                int completed = 0;
+                for (Branch b : branch) {
+                    // FIXME should all the branches expand in the same tick?
+                    if (b.expand(world)) {
+                        ++completed;
+                    }
+                }
+                if (completed == branch.size()) {
+                    log("all branch mines complete!");
+                    // FIXME should the branch list be cleared?
+                    delayRemaining = 1200;
+                }
+            }
         }
+    }
+
+    public boolean digBlock(World world, BlockPos pos) {
+        // digging an air block costs nothing.
+        // FIXME consume resources and move the block or dropped items
+        world.setBlockToAir(pos);
+        return true;
     }
 
     void digTest1(World world) {
@@ -358,7 +476,7 @@ public class Mine {
         }
     }
 
-    void digBlockInMine(World world, BlockPos minePos, NonNullList<ItemStack> drops) {
+    private void digBlockInMine(World world, BlockPos minePos, NonNullList<ItemStack> drops) {
         IBlockState state = world.getBlockState(minePos);
         Block block = state.getBlock();
         block.getDrops(drops, world, minePos, state, 0);

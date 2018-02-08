@@ -86,7 +86,7 @@ public class WorldManager extends WorldSavedData {
     public void periodicRefreshMines(World world) {
         if (ticksUntilMinesRefresh == 0) {
             refreshMines(world);
-            ticksUntilMinesRefresh = 20;
+            ticksUntilMinesRefresh = 200;
         } else {
             --ticksUntilMinesRefresh;
         }
