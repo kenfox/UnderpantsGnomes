@@ -121,3 +121,12 @@ ceiling in the initial room. A minecart is required for mines larger
 than 160x160.
 
 ** I will provide more info on ore percentage and drops as I test the mod **
+
+# Mod Development
+
+In creative mode no resources are needed while mining. You can also set the mine
+efficiency and happiness levels directly so this makes it easy to test
+different mine building logic and game play without spawning in lots of items.
+To reset an area of the world, the /fill command is helpful, e.g.:
+
+    /fill ~50 ~-2 ~-0 ~-50 ~-1 ~-50 stone 0

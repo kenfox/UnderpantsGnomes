@@ -2,6 +2,8 @@ package com.vulpes.upg.mine;
 
 import com.vulpes.upg.UnderpantsGnomes;
 import net.minecraft.block.Block;
+import net.minecraft.block.BlockAir;
+import net.minecraft.block.BlockStone;
 import net.minecraft.block.BlockWallSign;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.item.*;
@@ -27,9 +29,10 @@ public class Mine {
 
     private ArrayList<Branch> branch; // branch tunnels in-progress.
 
-    private BlockPos tunnelEnd; // active digging in the central tunnel.
-    private boolean leftComplete;
-    private boolean rightComplete;
+    private int miningPhase; // what are the gnomes doing now?
+    private BlockPos tunnelEnd; // location of digging in the central tunnel.
+
+    private BlockPos oreChestPos; // location of chest for drops.
 
     private int delayRemaining; // ticks until next mine operation.
 
@@ -176,9 +179,12 @@ public class Mine {
 
     public Mine(World world, BlockPos pos) {
         minePos = pos.add(0, -1, 0);
-        mineWidth = 48;
-        mineLength = 48;
+        mineWidth = 16;
+        mineLength = 16;
         mineFacing = NORTH;
+
+        oreChestPos = null;
+
         delayRemaining = 0;
 
         happiness = 0.0;
@@ -198,17 +204,16 @@ public class Mine {
 
         inCreativeMode = false;
 
-        configureMineUsingSign(world, pos);
         configureMineUsingChest(world);
+        configureMineUsingSign(world, pos);
 
         log("facing is " + mineFacing);
         log("lighting? " + shouldLightTunnels);
         log("flooring? " + shouldBuildFloor);
         log("breaking blocks? basic=" + shouldBreakBasicOre + " fancy=" + shouldBreakFancyOre + " all=" + shouldBreakEverything);
 
-        tunnelEnd = leftFrom(minePos, 1);
-        leftComplete = false;
-        rightComplete = false;
+        tunnelEnd = minePos;
+        miningPhase = 0;
 
         branch = new ArrayList<>();
 
@@ -237,6 +242,7 @@ public class Mine {
                         if (sign.signText != null && sign.signText.length > 0) {
                             log("setting mine options from sign!");
                             // FIXME set non-default values from sign
+                            // FIXME in creative mode also allow setting efficiency and happiness
                         }
                     }
                 }
@@ -365,23 +371,98 @@ public class Mine {
     }
 
     private boolean expandCentralTunnel(World world) {
-        if (!leftComplete) {
-            if (digCentralTunnelSection(world)) {
-                tunnelEnd = leftFrom(tunnelEnd, 1);
-                leftComplete = (distanceBetween(tunnelEnd, minePos) > mineWidth);
-                if (leftComplete) {
-                    tunnelEnd = rightFrom(minePos, 1);
+        switch (miningPhase) {
+            case 0:
+                // Start at step 0 after Mine object constructed. This puts
+                // the state machine configuration close to the state
+                // machine itself. After setup, fall through to run the first
+                // step.
+                tunnelEnd = backwardFrom(minePos, 1);
+                ++miningPhase;
+            case 1:
+                if (digStoreRoomSection(world)) {
+                    tunnelEnd = backwardFrom(tunnelEnd, 1);
+                    if (distanceBetween(tunnelEnd, minePos) > 10) {
+                        oreChestPos = backwardFrom(minePos, 3);
+                        ++miningPhase;
+                    }
                 }
-            }
-            return false;
+                return false;
+
+            case 2:
+                if (buildOreChest(world)) {
+                    ++miningPhase;
+                }
+                return false;
+
+            case 3:
+                tunnelEnd = leftFrom(minePos, 1);
+                ++miningPhase;
+            case 4:
+                if (digCentralTunnelSection(world)) {
+                    tunnelEnd = leftFrom(tunnelEnd, 1);
+                    if (distanceBetween(tunnelEnd, minePos) > mineWidth) {
+                        ++miningPhase;
+                    }
+                }
+                return false;
+
+            case 5:
+                tunnelEnd = rightFrom(minePos, 1);
+                ++miningPhase;
+            case 6:
+                if (digCentralTunnelSection(world)) {
+                    tunnelEnd = rightFrom(tunnelEnd, 1);
+                    if (distanceBetween(tunnelEnd, minePos) > mineWidth) {
+                        ++miningPhase;
+                    }
+                }
+                return false;
+
+            default:
+                return true;
         }
-        if (!rightComplete) {
-            if (digCentralTunnelSection(world)) {
-                tunnelEnd = rightFrom(tunnelEnd, 1);
-                rightComplete = (distanceBetween(tunnelEnd, minePos) > mineWidth);
+    }
+
+    private boolean digStoreRoomSection(World world) {
+        // FIXME all the same issues as with the branch expand
+        BlockPos a = tunnelEnd;
+        BlockPos b = leftFrom(tunnelEnd, 1);
+        BlockPos c = leftFrom(tunnelEnd, 2);
+        BlockPos d = rightFrom(tunnelEnd, 1);
+        BlockPos e = rightFrom(tunnelEnd, 2);
+        return (digBlock(world, a) &&
+                digBlock(world, upFrom(a, 1)) &&
+                digBlock(world, upFrom(a, 2)) &&
+                digBlock(world, upFrom(a, 3)) &&
+                digBlock(world, b) &&
+                digBlock(world, upFrom(b, 1)) &&
+                digBlock(world, upFrom(b, 2)) &&
+                digBlock(world, upFrom(b, 3)) &&
+                digBlock(world, c) &&
+                digBlock(world, upFrom(c, 1)) &&
+                digBlock(world, upFrom(c, 2)) &&
+                digBlock(world, upFrom(c, 3)) &&
+                digBlock(world, d) &&
+                digBlock(world, upFrom(d, 1)) &&
+                digBlock(world, upFrom(d, 2)) &&
+                digBlock(world, upFrom(d, 3)) &&
+                digBlock(world, e) &&
+                digBlock(world, upFrom(e, 1)) &&
+                digBlock(world, upFrom(e, 2)) &&
+                digBlock(world, upFrom(e, 3)));
+    }
+
+    private boolean buildOreChest(World world) {
+        if (oreChestPos != null) {
+            IBlockState state = world.getBlockState(oreChestPos);
+            Block block = state.getBlock();
+            if (isAir(block)) {
+                // FIXME how to create a chest?
+                return true;
             }
         }
-        return rightComplete;
+        return false;
     }
 
     private boolean digCentralTunnelSection(World world) {
@@ -401,6 +482,10 @@ public class Mine {
     }
 
     public void expand(World world) {
+        // FIXME this should expand faster when doing less work, e.g. if the
+        // mine is 80% complete when the chunk loads, it should find the ends
+        // of the branch mines much quicker than what it originally took to
+        // dig the mine.
         if (--delayRemaining <= 0) {
             delayRemaining = 20;
             log("mining!");
@@ -422,64 +507,35 @@ public class Mine {
         }
     }
 
+    public boolean isAir(Block block) {
+        return block instanceof BlockAir;
+    }
+
+    public boolean isStone(Block block) {
+        return block instanceof BlockStone;
+    }
+
     public boolean digBlock(World world, BlockPos pos) {
-        // digging an air block costs nothing.
-        // FIXME consume resources and move the block or dropped items
-        world.setBlockToAir(pos);
-        return true;
-    }
-
-    void digTest1(World world) {
-        log("digTest1: remote? " + world.isRemote + " facing " + mineFacing);
-        BlockPos p = minePos;
-        for (int i = 0; i < 5; ++i) {
-            p = leftFrom(p, 1);
-            world.setBlockToAir(p);
-        }
-        for (int i = 0; i < 4; ++i) {
-            p = forwardFrom(p, 1);
-            world.setBlockToAir(p);
-        }
-        for (int i = 0; i < 3; ++i) {
-            p = rightFrom(p, 1);
-            world.setBlockToAir(p);
-        }
-        for (int i = 0; i < 2; ++i) {
-            p = backwardFrom(p, 1);
-            world.setBlockToAir(p);
-        }
-    }
-
-    void digTest2(World world) {
-        log("digtest2: remote? " + world.isRemote + " facing " + mineFacing);
-        NonNullList<ItemStack> drops = NonNullList.create();
-
-        for (int digOffset = -5; digOffset < 2; ++digOffset) {
-            BlockPos branchPos = leftFrom(minePos, digOffset);
-            if (digOffset == 0)
-                branchPos = forwardFrom(branchPos, 2);
-            for (int dz = 0; dz < 4; ++dz) {
-                for (int dy = 0; dy < 3; ++dy) {
-                    BlockPos p = upFrom(forwardFrom(branchPos, dz), dy);
-                    digBlockInMine(world, p, drops);
+        IBlockState state = world.getBlockState(pos);
+        Block block = state.getBlock();
+        if (!isAir(block)) {
+            // FIXME consume resources unless in creative mode
+            if (oreChestPos != null || !isStone(block)) {
+                // FIXME move block if it cannot be broken by gnomes
+                NonNullList<ItemStack> drops = NonNullList.create();
+                block.getDrops(drops, world, pos, state, 0);
+                for (ItemStack drop : drops) {
+                    log("dropping " + drop);
+                    if (oreChestPos == null) {
+                        Block.spawnAsEntity(world, minePos, drop);
+                    } else {
+                        // FIXME move the drops into the chest
+                        Block.spawnAsEntity(world, oreChestPos, drop);
+                    }
                 }
             }
+            world.setBlockToAir(pos);
         }
-
-        for (ItemStack drop : drops) {
-            log("dropping " + drop);
-            // dropping an item from the entity animates it
-            //player.dropItem(drop, true);
-
-            // dropping an item from a block as if it were an entity
-            Block.spawnAsEntity(world, minePos, drop);
-        }
-    }
-
-    private void digBlockInMine(World world, BlockPos minePos, NonNullList<ItemStack> drops) {
-        IBlockState state = world.getBlockState(minePos);
-        Block block = state.getBlock();
-        block.getDrops(drops, world, minePos, state, 0);
-        world.setBlockToAir(minePos);
+        return true;
     }
 }
